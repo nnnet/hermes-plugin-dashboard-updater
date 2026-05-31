@@ -1,0 +1,11 @@
+{
+  "name": "dashboard-updater",
+  "label": "Dashboard Updater",
+  "description": "Redirects Dashboard Restart/Update buttons to hermes-updater sidecar via trigger files",
+  "icon": "RefreshCw",
+  "version": "0.1.0",
+  "tab": { "hidden": true },
+  "slots": [],
+  "entry": "dist/index.js",
+  "api": "api.py"
+}

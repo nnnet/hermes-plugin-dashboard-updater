@@ -1,0 +1,26 @@
+name: dashboard-updater
+kind: dashboard
+version: 0.1.0
+description: |
+  Перенаправляет кнопки Dashboard `Restart` / `Update` на sidecar
+  ``hermes-updater``.
+
+  Зачем: upstream-эндпоинты ``POST /api/gateway/restart`` и ``POST
+  /api/hermes/update`` запускают subprocess ВНУТРИ контейнера —
+  для Docker-сборки это бесполезно (subprocess не пересоздаёт
+  контейнер, не делает git pull, не пересобирает image).
+
+  Решение: backend пишет файл-сигнал в ``HERMES_HOME/triggers/``,
+  его читает sidecar ``hermes-updater`` (см.
+  ``docker-compose.hermes-core.yml``) — у него docker.sock и доступ
+  к проектному каталогу хоста. Frontend overlay перехватывает
+  fetch к ``/api/gateway/restart``, ``/api/hermes/update`` и
+  ``/api/actions/{name}/status`` и перенаправляет на
+  ``/api/plugins/dashboard-updater/{restart,update,status/{name}}``.
+
+  Status endpoint плагина читает наш ``HERMES_HOME/logs/*.log`` и
+  распознаёт маркеры ``[DONE]`` / ``[FAIL]``, которые пишет sidecar.
+  Upstream ``/api/actions/{name}/status`` этой логики не знает.
+
+author: nnnet/AiManager
+repo: https://github.com/nnnet/hermes-plugin-dashboard-updater
