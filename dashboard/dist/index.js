@@ -68,6 +68,110 @@
     return origFetch(input, init);
   };
 
+  // --- Own "Update Hermes" button (only when upstream hides its own) ---------
+  //
+  // Upstream renders its Update control unless ``can_update_hermes === false``
+  // (it is false inside containers: ``can_update_hermes = not is_container()``).
+  // When upstream DOES render it, our fetch overlay above already redirects its
+  // action to the sidecar — so we must NOT draw a second button (that would
+  // duplicate it in non-container installs). We draw our own ONLY when the
+  // upstream render condition is unmet, i.e. there is no native button to
+  // intercept. The check is the exact native render condition, not DOM-guessing.
+  var BTN_ATTR = "data-dashboard-updater-btn";
+  var updating = false;
+
+  function findRestartButton() {
+    var els = document.querySelectorAll('button, [role="button"]');
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].getAttribute(BTN_ATTR)) continue;
+      var t = (els[i].textContent || "").trim().toLowerCase();
+      if (t.indexOf("restart gateway") !== -1) return els[i];
+    }
+    return null;
+  }
+
+  function pollStatus() {
+    var btn = document.querySelector("[" + BTN_ATTR + "]");
+    origFetch("/api/plugins/dashboard-updater/status/hermes-update", {
+      credentials: "same-origin",
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        if (s && s.running) {
+          if (btn) btn.textContent = "Updating…";
+          setTimeout(pollStatus, 3000);
+        } else {
+          var ok = s && s.exit_code === 0;
+          if (btn) btn.textContent = ok ? "Updated ✓ — reloading…" : "Update failed";
+          updating = false;
+          if (ok) setTimeout(function () { location.reload(); }, 4000);
+        }
+      })
+      .catch(function () { setTimeout(pollStatus, 5000); });
+  }
+
+  function onUpdateClick() {
+    if (updating) return;
+    updating = true;
+    var btn = document.querySelector("[" + BTN_ATTR + "]");
+    if (btn) btn.textContent = "Updating…";
+    origFetch("/api/plugins/dashboard-updater/update", {
+      method: "POST",
+      credentials: "same-origin",
+    })
+      .then(function (r) { return r.json(); })
+      .then(function () { pollStatus(); })
+      .catch(function () {
+        if (btn) btn.textContent = "Update failed";
+        updating = false;
+      });
+  }
+
+  function tryInsertButton() {
+    if (document.querySelector("[" + BTN_ATTR + "]")) return true;
+    var restart = findRestartButton();
+    if (!restart || !restart.parentNode) return false;
+    var btn = document.createElement(restart.tagName);
+    btn.className = restart.className; // mimic native styling
+    btn.setAttribute(BTN_ATTR, "1");
+    btn.setAttribute("type", "button");
+    btn.textContent = "Update Hermes";
+    btn.addEventListener("click", onUpdateClick);
+    restart.parentNode.insertBefore(btn, restart.nextSibling);
+    return true;
+  }
+
+  function installOwnButton() {
+    if (tryInsertButton()) { /* present immediately */ }
+    // SPA renders async and re-renders (React may drop our node) — keep it alive.
+    try {
+      var obs = new MutationObserver(function () { tryInsertButton(); });
+      obs.observe(document.body, { childList: true, subtree: true });
+    } catch (e) { /* ignore */ }
+    var tries = 0;
+    var iv = setInterval(function () {
+      if (++tries > 120) { clearInterval(iv); return; }
+      tryInsertButton();
+    }, 1000);
+  }
+
+  function maybeDrawOwnButton() {
+    // Use origFetch so this status probe is never rewritten by our overlay.
+    origFetch("/api/status", { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (s) {
+        // Only draw ours when upstream will NOT render its own Update control.
+        if (s && s.can_update_hermes === false) installOwnButton();
+      })
+      .catch(function () { /* ignore */ });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", maybeDrawOwnButton);
+  } else {
+    maybeDrawOwnButton();
+  }
+
   // Register a no-op component so the plugin loader doesn't mark this plugin
   // as NO_REGISTER (cosmetic — manifest has tab.hidden=true so the component
   // is never rendered).
