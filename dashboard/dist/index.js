@@ -80,6 +80,19 @@
   var BTN_ATTR = "data-dashboard-updater-btn";
   var updating = false;
 
+  // Dashboard 0.17.0 gates every API behind secure login: requests must carry
+  // the session token in the X-Hermes-Session-Token header (the SPA reads it
+  // from window.__HERMES_SESSION_TOKEN__). Plain fetch without it gets 401 —
+  // which is what made the Update button report "failed". Attach it ourselves.
+  function authHeaders(extra) {
+    var h = extra || {};
+    try {
+      var t = window.__HERMES_SESSION_TOKEN__;
+      if (t) h["X-Hermes-Session-Token"] = t;
+    } catch (e) { /* ignore */ }
+    return h;
+  }
+
   function findRestartButton() {
     var els = document.querySelectorAll('button, [role="button"]');
     for (var i = 0; i < els.length; i++) {
@@ -94,6 +107,7 @@
     var btn = document.querySelector("[" + BTN_ATTR + "]");
     origFetch("/api/plugins/dashboard-updater/status/hermes-update", {
       credentials: "same-origin",
+      headers: authHeaders(),
     })
       .then(function (r) { return r.json(); })
       .then(function (s) {
@@ -118,6 +132,7 @@
     origFetch("/api/plugins/dashboard-updater/update", {
       method: "POST",
       credentials: "same-origin",
+      headers: authHeaders(),
     })
       .then(function (r) { return r.json(); })
       .then(function () { pollStatus(); })
@@ -157,7 +172,7 @@
 
   function maybeDrawOwnButton() {
     // Use origFetch so this status probe is never rewritten by our overlay.
-    origFetch("/api/status", { credentials: "same-origin" })
+    origFetch("/api/status", { credentials: "same-origin", headers: authHeaders() })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (s) {
         // Only draw ours when upstream will NOT render its own Update control.
