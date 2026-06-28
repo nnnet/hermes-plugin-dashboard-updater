@@ -137,7 +137,10 @@
     if (el) return el;
     el = document.createElement("div");
     el.id = BANNER_ID;
-    el.className = "mb-3 border border-border bg-background-base/50";
+    // w-full + basis-full: when the anchor row is a horizontal flex container the
+    // card must claim the whole line so the Overview/History segmented control
+    // wraps BELOW it instead of sitting beside it.
+    el.className = "mb-3 w-full basis-full border border-border bg-background-base/50";
     el.innerHTML =
       '<div class="flex items-center justify-between gap-2 border-b border-border px-3 py-2">' +
         '<div class="flex items-center gap-2 min-w-0">' +
@@ -156,6 +159,9 @@
     var row = findAnchorRow();
     if (row && row.parentNode) {
       row.parentNode.insertBefore(el, row);
+      // Force full width even if Tailwind's w-full/basis-full aren't in the build.
+      el.style.width = "100%";
+      el.style.flexBasis = "100%";
     } else {
       // Fallback when the Sessions layout isn't mounted: pin to top of document.
       el.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999";
