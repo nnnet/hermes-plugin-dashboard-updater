@@ -103,6 +103,26 @@
     return null;
   }
 
+  // Live log panel — the sidecar streams build output into the status log; show
+  // its tail under the button (this is what the old flow displayed during an
+  // update).
+  function renderLog(lines) {
+    var box = document.getElementById("dashboard-updater-log");
+    if (!box) {
+      box = document.createElement("pre");
+      box.id = "dashboard-updater-log";
+      box.style.cssText =
+        "max-height:220px;overflow:auto;font-size:11px;line-height:1.35;" +
+        "white-space:pre-wrap;word-break:break-word;background:#0a0a0a;" +
+        "color:#9fe6c8;padding:8px;margin:6px 0 0;border:1px solid #2a2a2a;" +
+        "border-radius:4px;font-family:ui-monospace,Menlo,monospace";
+      var btn = document.querySelector("[" + BTN_ATTR + "]");
+      if (btn && btn.parentNode) btn.parentNode.insertBefore(box, btn.nextSibling);
+    }
+    if (lines && lines.length) box.textContent = lines.slice(-50).join("\n");
+    box.scrollTop = box.scrollHeight;
+  }
+
   function pollStatus() {
     var btn = document.querySelector("[" + BTN_ATTR + "]");
     origFetch("/api/plugins/dashboard-updater/status/hermes-update", {
@@ -111,9 +131,10 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (s) {
+        if (s && s.lines) renderLog(s.lines);
         if (s && s.running) {
           if (btn) btn.textContent = "Updating…";
-          setTimeout(pollStatus, 3000);
+          setTimeout(pollStatus, 2000);
         } else {
           var ok = s && s.exit_code === 0;
           if (btn) btn.textContent = ok ? "Updated ✓ — reloading…" : "Update failed";
