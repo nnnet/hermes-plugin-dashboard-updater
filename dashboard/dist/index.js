@@ -103,24 +103,99 @@
     return null;
   }
 
-  // Live log panel — the sidecar streams build output into the status log; show
-  // its tail under the button (this is what the old flow displayed during an
-  // update).
-  function renderLog(lines) {
-    var box = document.getElementById("dashboard-updater-log");
-    if (!box) {
-      box = document.createElement("pre");
-      box.id = "dashboard-updater-log";
-      box.style.cssText =
-        "max-height:220px;overflow:auto;font-size:11px;line-height:1.35;" +
-        "white-space:pre-wrap;word-break:break-word;background:#0a0a0a;" +
-        "color:#9fe6c8;padding:8px;margin:6px 0 0;border:1px solid #2a2a2a;" +
-        "border-radius:4px;font-family:ui-monospace,Menlo,monospace";
-      var btn = document.querySelector("[" + BTN_ATTR + "]");
-      if (btn && btn.parentNode) btn.parentNode.insertBefore(box, btn.nextSibling);
+  // Live log panel — reproduce the NATIVE upstream update-log card 1:1. In
+  // 0.15.x (and still, when run outside Docker) upstream renders this as a card
+  // IN THE PAGE FLOW at the top of the Sessions page, right above the
+  // Overview/History segmented control, and keeps it up for the whole
+  // git-pull → rebuild → restart. It is NOT a floating banner. We rebuild the
+  // exact same markup (web/src/pages/SessionsPage.tsx ``activeAction`` block)
+  // reusing the dashboard's own Tailwind classes — the CSS is already loaded, so
+  // it is visually identical (border-border, bg-background-base/50, font-mondwest
+  // header, font-mono-ui <pre class="max-h-72 …">).
+  var BANNER_ID = "dashboard-updater-banner";
+
+  // The native card is inserted just before the row that holds the
+  // Overview/History segmented control. Find that row so we drop ours in the
+  // same spot instead of floating it over the layout.
+  function findAnchorRow() {
+    var btns = document.querySelectorAll('button, [role="button"]');
+    var ov = null, hi = null;
+    for (var i = 0; i < btns.length; i++) {
+      var t = (btns[i].textContent || "").trim().toLowerCase();
+      if (t === "overview") ov = btns[i];
+      else if (t === "history") hi = btns[i];
     }
-    if (lines && lines.length) box.textContent = lines.slice(-50).join("\n");
-    box.scrollTop = box.scrollHeight;
+    if (!ov || !hi) return null;
+    var seg = ov;
+    while (seg && !(seg.contains(ov) && seg.contains(hi))) seg = seg.parentElement;
+    if (!seg || !seg.parentElement) return null;
+    return seg.parentElement; // flex-wrap row; we insert our card before it
+  }
+
+  function ensureBanner() {
+    var el = document.getElementById(BANNER_ID);
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = BANNER_ID;
+    el.className = "mb-3 border border-border bg-background-base/50";
+    el.innerHTML =
+      '<div class="flex items-center justify-between gap-2 border-b border-border px-3 py-2">' +
+        '<div class="flex items-center gap-2 min-w-0">' +
+          '<span data-du-dot class="inline-block h-2 w-2 shrink-0 rounded-full bg-warning animate-pulse"></span>' +
+          '<span class="text-xs font-mondwest tracking-[0.12em] truncate">Update Hermes</span>' +
+          '<span data-du-badge class="text-xs shrink-0 rounded border border-warning/40 px-1.5 py-0.5 text-warning">Running</span>' +
+        '</div>' +
+        '<button data-du-close type="button" aria-label="Close" ' +
+          'class="shrink-0 px-1 text-text-secondary hover:text-foreground">✕</button>' +
+      '</div>' +
+      '<pre data-du-log class="max-h-72 overflow-auto px-3 py-2 font-mono-ui text-xs leading-relaxed whitespace-pre-wrap break-all"></pre>';
+    el.querySelector("[data-du-close]").addEventListener("click", function () {
+      var n = document.getElementById(BANNER_ID);
+      if (n && n.parentNode) n.parentNode.removeChild(n);
+    });
+    var row = findAnchorRow();
+    if (row && row.parentNode) {
+      row.parentNode.insertBefore(el, row);
+    } else {
+      // Fallback when the Sessions layout isn't mounted: pin to top of document.
+      el.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999";
+      el.className = "border border-border bg-background-base/50";
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  // state: "running" | "ok" | "fail"
+  function renderLog(lines, state) {
+    var el = ensureBanner();
+    var dot = el.querySelector("[data-du-dot]");
+    var badge = el.querySelector("[data-du-badge]");
+    var logBox = el.querySelector("[data-du-log]");
+    if (state === "ok") {
+      if (dot) dot.className = "inline-block h-2 w-2 shrink-0 rounded-full bg-success";
+      if (badge) {
+        badge.textContent = "Finished";
+        badge.className = "text-xs shrink-0 rounded border border-success/40 px-1.5 py-0.5 text-success";
+      }
+    } else if (state === "fail") {
+      if (dot) dot.className = "inline-block h-2 w-2 shrink-0 rounded-full bg-destructive";
+      if (badge) {
+        badge.textContent = "Failed";
+        badge.className = "text-xs shrink-0 rounded border border-destructive/40 px-1.5 py-0.5 text-destructive";
+      }
+    } else {
+      if (dot) dot.className = "inline-block h-2 w-2 shrink-0 rounded-full bg-warning animate-pulse";
+      if (badge) {
+        badge.textContent = "Running";
+        badge.className = "text-xs shrink-0 rounded border border-warning/40 px-1.5 py-0.5 text-warning";
+      }
+    }
+    if (lines && lines.length) {
+      logBox.textContent = lines.slice(-400).join("\n");
+    } else if (!logBox.textContent) {
+      logBox.textContent = "Waiting for output…";
+    }
+    logBox.scrollTop = logBox.scrollHeight;
   }
 
   function pollStatus() {
@@ -131,13 +206,14 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (s) {
-        if (s && s.lines) renderLog(s.lines);
         if (s && s.running) {
           if (btn) btn.textContent = "Updating…";
+          renderLog(s && s.lines, "running");
           setTimeout(pollStatus, 2000);
         } else {
           var ok = s && s.exit_code === 0;
           if (btn) btn.textContent = ok ? "Updated ✓ — reloading…" : "Update failed";
+          renderLog(s && s.lines, ok ? "ok" : "fail");
           updating = false;
           if (ok) setTimeout(function () { location.reload(); }, 4000);
         }
@@ -150,6 +226,9 @@
     updating = true;
     var btn = document.querySelector("[" + BTN_ATTR + "]");
     if (btn) btn.textContent = "Updating…";
+    // Show the banner immediately so there is visible feedback during the gap
+    // between the trigger and the sidecar's first log line.
+    renderLog(["[starting] update triggered — waiting for hermes-updater sidecar…"], "running");
     origFetch("/api/plugins/dashboard-updater/update", {
       method: "POST",
       credentials: "same-origin",

@@ -73,9 +73,15 @@ def _touch_trigger(action: str) -> Path:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / _ACTION_LOG_FILES[action]
     label = _ACTION_LABELS[action]
-    with open(log_path, "a", encoding="utf-8") as f:
+    # Truncate (mode "w"), do NOT append. The status route classifies the run by
+    # scanning the log tail for [DONE]/[FAIL]; if we appended, the previous run's
+    # [DONE] would still sit in the last 30 lines and the UI would instantly read
+    # the fresh trigger as "already finished" and reload before the sidecar even
+    # starts. A clean log per trigger means the tail has a header and no closing
+    # marker yet → running=True until the sidecar writes its own [DONE].
+    with open(log_path, "w", encoding="utf-8") as f:
         f.write(
-            f"\n=== {label} triggered at "
+            f"=== {label} triggered at "
             f"{time.strftime('%Y-%m-%d %H:%M:%S')} ===\n"
         )
         f.write(f"Trigger file: {trigger_path}\n")
