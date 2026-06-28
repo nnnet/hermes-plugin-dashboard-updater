@@ -1,0 +1,22 @@
+dashboard/dist/index.js
+  s_28e925fb55cbb1::t_988451a8b1b0da 83-95
+  s_28e925fb55cbb1::t_0d47991c1eab5b 110
+  s_28e925fb55cbb1::t_bf75875d72cc1e 175
+  s_28e925fb55cbb1::t_116963c2b3866b 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "48ac4184156858c486c940c36c69cf2000a80a2a",
+  "prompts": {},
+  "sessions": {
+    "s_28e925fb55cbb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afe1c6d3-ab91-487e-b007-7fe92db051a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "nnnet <21066097+nnnet@users.noreply.github.com>"
+    }
+  }
+}
