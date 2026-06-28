@@ -1,0 +1,19 @@
+dashboard/dist/index.js
+  s_28e925fb55cbb1::t_56b0b10d1d2995 71-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "80a1d667cbf7c1f10e408241be551dbe142493f1",
+  "prompts": {},
+  "sessions": {
+    "s_28e925fb55cbb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afe1c6d3-ab91-487e-b007-7fe92db051a2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "nnnet <21066097+nnnet@users.noreply.github.com>"
+    }
+  }
+}
